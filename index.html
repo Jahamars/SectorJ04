@@ -1,0 +1,889 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Terraform Log Analyzer - Optimized</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css" />
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo, useRef } = React;
+
+        // Иконки
+        const Upload = ({ className }) => (
+            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+            </svg>
+        );
+
+        const CheckCircle = ({ className }) => (
+            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+        );
+
+        const AlertCircle = ({ className }) => (
+            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+        );
+
+        const Info = ({ className }) => (
+            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+        );
+
+        const AlertTriangle = ({ className }) => (
+            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+        );
+
+        const FileText = ({ className }) => (
+            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+        );
+
+        const ChevronDown = ({ className }) => (
+            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+        );
+
+        const ChevronRight = ({ className }) => (
+            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+        );
+
+        const Eye = ({ className }) => (
+            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+            </svg>
+        );
+
+        const EyeOff = ({ className }) => (
+            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+            </svg>
+        );
+
+        const Bookmark = ({ className }) => (
+            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+            </svg>
+        );
+
+        const BookmarkFilled = ({ className }) => (
+            <svg className={className} fill="currentColor" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+            </svg>
+        );
+
+        const Refresh = ({ className }) => (
+            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+        );
+
+        const ZoomIn = ({ className }) => (
+            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m3-3H7" />
+            </svg>
+        );
+
+        const ZoomOut = ({ className }) => (
+            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM13 10H7" />
+            </svg>
+        );
+
+        // Функции парсинга
+        const parseLog = (content) => {
+            const lines = content.split('\n').filter(line => line.trim());
+            const parsed = [];
+            let currentSection = null;
+            let sectionStartIndex = -1;
+
+            lines.forEach((line, index) => {
+                let entry;
+                let isParsed = true;
+                try {
+                    entry = JSON.parse(line);
+                } catch (e) {
+                    const timestampMatch = line.match(/(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{6,})?\+\d{2}:\d{2})/);
+                    const levelMatch = line.match(/\b(info|debug|trace|warn|error)\b/i);
+
+                    entry = {
+                        '@message': line,
+                        '@timestamp': timestampMatch ? timestampMatch[1] : null,
+                        '@level': levelMatch ? levelMatch[1].toLowerCase() : null,
+                        unparsed: true
+                    };
+                    isParsed = false;
+                }
+
+                const message = entry['@message'] || '';
+                if (message.includes('CLI args:')) {
+                    if (message.includes('"plan"')) {
+                        currentSection = 'plan';
+                        sectionStartIndex = index;
+                    } else if (message.includes('"apply"')) {
+                        currentSection = 'apply';
+                        sectionStartIndex = index;
+                    }
+                }
+
+                const reqId = entry['tf_req_id'] || entry['request_id'] || null;
+                const resourceType = entry['tf_resource_type'] || entry['resource_type'] || null;
+
+                parsed.push({
+                    index,
+                    timestamp: entry['@timestamp'] || 'N/A',
+                    level: entry['@level'] || 'unknown',
+                    message: entry['@message'] || '',
+                    section: currentSection,
+                    sectionStart: sectionStartIndex === index,
+                    raw: entry,
+                    isParsed,
+                    tf_req_id: reqId,
+                    tf_resource_type: resourceType,
+                    http_req_body: entry['tf_http_req_body'] || entry['http_req_body'] || null,
+                    http_res_body: entry['tf_http_res_body'] || entry['http_res_body'] || null,
+                });
+            });
+
+            return parsed;
+        };
+
+        const calculateStats = (parsedLogs) => {
+            const stats = {
+                total: parsedLogs.length,
+                levels: {},
+                sections: { plan: 0, apply: 0, other: 0 },
+                timeRange: { start: null, end: null },
+                reqIds: new Set(),
+                resourceTypes: new Set()
+            };
+
+            parsedLogs.forEach(log => {
+                stats.levels[log.level] = (stats.levels[log.level] || 0) + 1;
+
+                if (log.section === 'plan') stats.sections.plan++;
+                else if (log.section === 'apply') stats.sections.apply++;
+                else stats.sections.other++;
+
+                if (log.timestamp !== 'N/A' && log.timestamp) {
+                    const logDate = new Date(log.timestamp);
+                    if (!isNaN(logDate.getTime())) {
+                        if (!stats.timeRange.start || logDate < new Date(stats.timeRange.start)) {
+                            stats.timeRange.start = log.timestamp;
+                        }
+                        if (!stats.timeRange.end || logDate > new Date(stats.timeRange.end)) {
+                            stats.timeRange.end = log.timestamp;
+                        }
+                    }
+                }
+
+                if (log.tf_req_id) stats.reqIds.add(log.tf_req_id);
+                if (log.tf_resource_type) stats.resourceTypes.add(log.tf_resource_type);
+            });
+
+            return stats;
+        };
+
+        // Компонент JSON Viewer
+        const JsonViewer = ({ data, label }) => {
+            const [isOpen, setIsOpen] = useState(false);
+            const [showRaw, setShowRaw] = useState(false);
+            const [selectedKeys, setSelectedKeys] = useState(new Set());
+
+            const toggleKey = (key) => {
+                const newSet = new Set(selectedKeys);
+                if (newSet.has(key)) {
+                    newSet.delete(key);
+                } else {
+                    newSet.add(key);
+                }
+                setSelectedKeys(newSet);
+            };
+
+            if (!data) return null;
+
+            let parsedData;
+            try {
+                parsedData = typeof data === 'string' ? JSON.parse(data) : data;
+            } catch (e) {
+                return null;
+            }
+
+            const isObject = typeof parsedData === 'object' && parsedData !== null;
+            const keys = isObject ? Object.keys(parsedData) : [];
+
+            return (
+                <div className="mt-2">
+                    <button
+                        onClick={() => setIsOpen(!isOpen)}
+                        className="flex items-center gap-2 text-xs font-mono text-cyan-400 hover:text-cyan-300 bg-slate-700 px-2 py-1 rounded"
+                    >
+                        {isOpen ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                        {label} ({isObject ? 'Object' : typeof parsedData})
+                    </button>
+                    {isOpen && (
+                        <div className="mt-1 ml-4 border border-slate-600 rounded-md bg-slate-800">
+                            {isObject && (
+                                <div className="p-2">
+                                    <div className="flex gap-2 mb-2 flex-wrap">
+                                        <button
+                                            onClick={() => setShowRaw(!showRaw)}
+                                            className={`text-xs px-2 py-1 rounded ${showRaw ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-300'}`}
+                                        >
+                                            {showRaw ? <EyeOff className="w-3 h-3 inline mr-1" /> : <Eye className="w-3 h-3 inline mr-1" />}
+                                            {showRaw ? 'Скрыть Raw' : 'Показать Raw'}
+                                        </button>
+                                        <button
+                                            onClick={() => setSelectedKeys(new Set(keys))}
+                                            className="text-xs bg-slate-700 text-slate-300 px-2 py-1 rounded"
+                                        >
+                                            Выбрать все
+                                        </button>
+                                        <button
+                                            onClick={() => setSelectedKeys(new Set())}
+                                            className="text-xs bg-slate-700 text-slate-300 px-2 py-1 rounded"
+                                        >
+                                            Снять выделение
+                                        </button>
+                                    </div>
+                                    {!showRaw && (
+                                        <div className="flex flex-wrap gap-1 mb-2">
+                                            {keys.map(key => (
+                                                <button
+                                                    key={key}
+                                                    onClick={() => toggleKey(key)}
+                                                    className={`text-xs px-2 py-1 rounded ${selectedKeys.has(key) ? 'bg-green-600 text-white' : 'bg-slate-700 text-slate-300'}`}
+                                                >
+                                                    {key}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                    {showRaw ? (
+                                        <pre className="text-xs bg-slate-900 p-2 rounded overflow-x-auto">
+                                            <code className="language-json hljs">
+                                                {JSON.stringify(parsedData, null, 2)}
+                                            </code>
+                                        </pre>
+                                    ) : selectedKeys.size > 0 ? (
+                                        <pre className="text-xs bg-slate-900 p-2 rounded overflow-x-auto">
+                                            <code className="language-json hljs">
+                                                {JSON.stringify(Object.fromEntries([...selectedKeys].map(k => [k, parsedData[k]])), null, 2)}
+                                            </code>
+                                        </pre>
+                                    ) : (
+                                        <pre className="text-xs bg-slate-900 p-2 rounded overflow-x-auto">
+                                            <code className="language-json hljs">
+                                                {JSON.stringify(parsedData, null, 2)}
+                                            </code>
+                                        </pre>
+                                    )}
+                                </div>
+                            )}
+                            {!isObject && (
+                                <pre className="text-xs bg-slate-900 p-2 rounded overflow-x-auto">
+                                    <code className="language-json hljs">
+                                        {JSON.stringify(parsedData, null, 2)}
+                                    </code>
+                                </pre>
+                            )}
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        // Компонент Timeline с улучшенным масштабированием
+        const Timeline = ({ logs }) => {
+            const canvasRef = useRef(null);
+            const [zoom, setZoom] = useState(1);
+            const [offset, setOffset] = useState(0);
+            const [isDragging, setIsDragging] = useState(false);
+            const [dragStart, setDragStart] = useState(0);
+
+            const timelineData = useMemo(() => {
+                const validLogs = logs.filter(log => log.timestamp !== 'N/A' && log.timestamp);
+                if (validLogs.length === 0) return null;
+
+                const timestamps = validLogs.map(log => new Date(log.timestamp).getTime()).filter(t => !isNaN(t));
+                if (timestamps.length === 0) return null;
+
+                const minTime = Math.min(...timestamps);
+                const maxTime = Math.max(...timestamps);
+
+                return { validLogs, minTime, maxTime, duration: maxTime - minTime };
+            }, [logs]);
+
+            useEffect(() => {
+                if (!timelineData || !canvasRef.current) return;
+
+                const canvas = canvasRef.current;
+                const ctx = canvas.getContext('2d');
+                const width = canvas.width;
+                const height = canvas.height;
+
+                ctx.clearRect(0, 0, width, height);
+
+                const { validLogs, minTime, maxTime, duration } = timelineData;
+
+                const visibleWidth = width / zoom;
+                const startTime = minTime + (duration * offset);
+                const endTime = startTime + (duration / zoom);
+
+                // Фон
+                ctx.fillStyle = '#1e293b';
+                ctx.fillRect(0, 0, width, height);
+
+                // Сетка
+                ctx.strokeStyle = '#334155';
+                ctx.lineWidth = 1;
+                const gridLines = 10;
+                for (let i = 0; i <= gridLines; i++) {
+                    const x = (width / gridLines) * i;
+                    ctx.beginPath();
+                    ctx.moveTo(x, 0);
+                    ctx.lineTo(x, height);
+                    ctx.stroke();
+                }
+
+                // События
+                validLogs.forEach(log => {
+                    const timestamp = new Date(log.timestamp).getTime();
+                    if (timestamp < startTime || timestamp > endTime) return;
+
+                    const x = ((timestamp - startTime) / (endTime - startTime)) * width;
+                    const y = height / 2;
+
+                    const colors = {
+                        error: '#dc2626',
+                        warn: '#eab308',
+                        info: '#3b82f6',
+                        debug: '#6b7280',
+                        trace: '#a855f7',
+                        unknown: '#9ca3af'
+                    };
+
+                    ctx.fillStyle = colors[log.level] || colors.unknown;
+                    ctx.beginPath();
+                    ctx.arc(x, y, 3, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    if (log.sectionStart) {
+                        ctx.strokeStyle = log.section === 'plan' ? '#3b82f6' : '#a855f7';
+                        ctx.lineWidth = 2;
+                        ctx.beginPath();
+                        ctx.moveTo(x, 0);
+                        ctx.lineTo(x, height);
+                        ctx.stroke();
+                    }
+                });
+
+                // Временные метки
+                ctx.fillStyle = '#94a3b8';
+                ctx.font = '10px monospace';
+                ctx.textAlign = 'center';
+                for (let i = 0; i <= 5; i++) {
+                    const time = startTime + ((endTime - startTime) / 5) * i;
+                    const date = new Date(time);
+                    const label = date.toLocaleTimeString('ru-RU');
+                    const x = (width / 5) * i;
+                    ctx.fillText(label, x, height - 5);
+                }
+
+            }, [timelineData, zoom, offset]);
+
+            const handleWheel = (e) => {
+                e.preventDefault();
+                const delta = e.deltaY > 0 ? 0.9 : 1.1;
+                setZoom(prev => Math.max(1, Math.min(100, prev * delta)));
+            };
+
+            const handleMouseDown = (e) => {
+                setIsDragging(true);
+                setDragStart(e.clientX);
+            };
+
+            const handleMouseMove = (e) => {
+                if (!isDragging) return;
+                const delta = (dragStart - e.clientX) / (canvasRef.current.width * zoom);
+                setOffset(prev => Math.max(0, Math.min(1 - (1 / zoom), prev + delta)));
+                setDragStart(e.clientX);
+            };
+
+            const handleMouseUp = () => {
+                setIsDragging(false);
+            };
+
+            if (!timelineData) {
+                return (
+                    <div className="text-center py-8 text-slate-400">
+                        <p>Недостаточно данных для отображения временной шкалы</p>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="space-y-2">
+                    <div className="flex items-center gap-2 justify-between">
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={() => setZoom(prev => Math.min(100, prev * 1.5))}
+                                className="flex items-center gap-1 text-xs bg-slate-700 hover:bg-slate-600 text-white px-2 py-1 rounded"
+                            >
+                                <ZoomIn className="w-4 h-4" /> Приблизить
+                            </button>
+                            <button
+                                onClick={() => setZoom(prev => Math.max(1, prev / 1.5))}
+                                className="flex items-center gap-1 text-xs bg-slate-700 hover:bg-slate-600 text-white px-2 py-1 rounded"
+                            >
+                                <ZoomOut className="w-4 h-4" /> Отдалить
+                            </button>
+                            <button
+                                onClick={() => { setZoom(1); setOffset(0); }}
+                                className="text-xs bg-slate-700 hover:bg-slate-600 text-white px-2 py-1 rounded"
+                            >
+                                Сбросить
+                            </button>
+                        </div>
+                        <div className="text-xs text-slate-400">
+                            Масштаб: {zoom.toFixed(1)}x | Используйте колесо мыши для масштабирования
+                        </div>
+                    </div>
+                    <canvas
+                        ref={canvasRef}
+                        width={1200}
+                        height={120}
+                        className="w-full border border-slate-700 rounded cursor-move"
+                        onWheel={handleWheel}
+                        onMouseDown={handleMouseDown}
+                        onMouseMove={handleMouseMove}
+                        onMouseUp={handleMouseUp}
+                        onMouseLeave={handleMouseUp}
+                    />
+                    <div className="flex items-center gap-4 text-xs">
+                        <div className="flex items-center gap-1">
+                            <div className="w-3 h-3 rounded-full bg-red-600"></div>
+                            <span>Error</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                            <div className="w-3 h-3 rounded-full bg-yellow-600"></div>
+                            <span>Warn</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                            <div className="w-3 h-3 rounded-full bg-blue-600"></div>
+                            <span>Info</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                            <div className="w-3 h-3 rounded-full bg-gray-600"></div>
+                            <span>Debug</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                            <div className="w-3 h-3 rounded-full bg-purple-600"></div>
+                            <span>Trace</span>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // Основной компонент
+        const TerraformLogParser = () => {
+            const [logs, setLogs] = useState([]);
+            const [filteredLogs, setFilteredLogs] = useState([]);
+            const [stats, setStats] = useState(null);
+            const [fileName, setFileName] = useState('');
+            const [searchTerm, setSearchTerm] = useState('');
+            const [filterLevel, setFilterLevel] = useState('');
+            const [filterSection, setFilterSection] = useState('');
+            const [filterReqId, setFilterReqId] = useState('');
+            const [filterResourceType, setFilterResourceType] = useState('');
+            const [filterTimestampStart, setFilterTimestampStart] = useState('');
+            const [filterTimestampEnd, setFilterTimestampEnd] = useState('');
+            const [filterUnread, setFilterUnread] = useState(false);
+            const [readLogs, setReadLogs] = useState(new Set());
+
+            const handleFileUpload = (event) => {
+                const file = event.target.files[0];
+                if (!file) return;
+
+                setFileName(file.name);
+                const reader = new FileReader();
+
+                reader.onload = (e) => {
+                    const content = e.target.result;
+                    const parsed = parseLog(content);
+                    setLogs(parsed);
+                    setStats(calculateStats(parsed));
+                    setSearchTerm('');
+                    setFilterLevel('');
+                    setFilterSection('');
+                    setFilterReqId('');
+                    setFilterResourceType('');
+                    setFilterTimestampStart('');
+                    setFilterTimestampEnd('');
+                    setFilterUnread(false);
+                    setReadLogs(new Set());
+                };
+
+                reader.readAsText(file);
+            };
+
+            useEffect(() => {
+                if (!logs.length) {
+                    setFilteredLogs([]);
+                    return;
+                }
+
+                let result = logs;
+
+                if (searchTerm) {
+                    const lowerSearchTerm = searchTerm.toLowerCase();
+                    result = result.filter(log => log.message.toLowerCase().includes(lowerSearchTerm));
+                }
+                if (filterLevel) {
+                    result = result.filter(log => log.level === filterLevel);
+                }
+                if (filterSection) {
+                    result = result.filter(log => log.section === filterSection);
+                }
+                if (filterReqId) {
+                    result = result.filter(log => log.tf_req_id === filterReqId);
+                }
+                if (filterResourceType) {
+                    result = result.filter(log => log.tf_resource_type === filterResourceType);
+                }
+                if (filterTimestampStart) {
+                    result = result.filter(log => log.timestamp !== 'N/A' && new Date(log.timestamp) >= new Date(filterTimestampStart));
+                }
+                if (filterTimestampEnd) {
+                    result = result.filter(log => log.timestamp !== 'N/A' && new Date(log.timestamp) <= new Date(filterTimestampEnd));
+                }
+                if (filterUnread) {
+                    result = result.filter(log => !readLogs.has(log.index));
+                }
+
+                setFilteredLogs(result);
+            }, [logs, searchTerm, filterLevel, filterSection, filterReqId, filterResourceType, filterTimestampStart, filterTimestampEnd, filterUnread, readLogs]);
+
+            const getLevelColor = (level) => {
+                const colors = {
+                    error: 'text-red-600 bg-red-50',
+                    warn: 'text-yellow-600 bg-yellow-50',
+                    info: 'text-blue-600 bg-blue-50',
+                    debug: 'text-gray-600 bg-gray-50',
+                    trace: 'text-purple-600 bg-purple-50',
+                    unknown: 'text-gray-400 bg-gray-50'
+                };
+                return colors[level] || colors.unknown;
+            };
+
+            const getLevelIcon = (level) => {
+                const icons = {
+                    error: <AlertCircle className="w-4 h-4" />,
+                    warn: <AlertTriangle className="w-4 h-4" />,
+                    info: <Info className="w-4 h-4" />,
+                    debug: <FileText className="w-4 h-4" />,
+                    trace: <FileText className="w-4 h-4" />
+                };
+                return icons[level] || icons.debug;
+            };
+
+            const toggleRead = (index) => {
+                setReadLogs(prev => {
+                    const newSet = new Set(prev);
+                    if (newSet.has(index)) {
+                        newSet.delete(index);
+                    } else {
+                        newSet.add(index);
+                    }
+                    return newSet;
+                });
+            };
+
+            const resetRead = () => {
+                setReadLogs(new Set());
+            };
+
+            const getFormattedTimestamp = (ts) => {
+                if (ts === 'N/A' || !ts) return 'N/A';
+                try {
+                    return new Date(ts).toLocaleString('ru-RU', {
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit',
+                        fractionalSecondDigits: 3
+                    });
+                } catch (e) {
+                    return ts;
+                }
+            };
+
+            return (
+                <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white p-6">
+                    <div className="max-w-7xl mx-auto">
+                        <div className="mb-8">
+                            <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
+                                Terraform Log Analyzer - Optimized
+                            </h1>
+                        </div>
+
+                        {/* Блок загрузки */}
+                        <div className="bg-slate-800 rounded-lg p-6 mb-6 border border-slate-700">
+                            <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-slate-600 rounded-lg cursor-pointer hover:border-cyan-500 transition-all">
+                                <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                                    <Upload className="w-10 h-10 mb-3 text-slate-400" />
+                                    <p className="mb-2 text-sm text-slate-400">
+                                        <span className="font-semibold">Загрузите</span> или перетащите файл JSON
+                                    </p>
+                                    {fileName && <p className="text-xs text-cyan-400">Загружен: {fileName}</p>}
+                                </div>
+                                <input type="file" className="hidden" accept=".json" onChange={handleFileUpload} />
+                            </label>
+                        </div>
+
+                        {/* Статистика */}
+                        {stats && (
+                            <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+                                <div className="bg-gradient-to-br from-cyan-600 to-cyan-700 rounded-lg p-4 shadow-lg">
+                                    <div className="text-sm text-cyan-100 mb-1">Всего записей</div>
+                                    <div className="text-3xl font-bold">{stats.total}</div>
+                                </div>
+                                <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-lg p-4 shadow-lg">
+                                    <div className="text-sm text-blue-100 mb-1">План</div>
+                                    <div className="text-3xl font-bold">{stats.sections.plan}</div>
+                                </div>
+                                <div className="bg-gradient-to-br from-purple-600 to-purple-700 rounded-lg p-4 shadow-lg">
+                                    <div className="text-sm text-purple-100 mb-1">Применение</div>
+                                    <div className="text-3xl font-bold">{stats.sections.apply}</div>
+                                </div>
+                                <div className="bg-gradient-to-br from-pink-600 to-pink-700 rounded-lg p-4 shadow-lg">
+                                    <div className="text-sm text-pink-100 mb-1">Ошибки</div>
+                                    <div className="text-3xl font-bold">{stats.levels.error || 0}</div>
+                                </div>
+                                <div className="bg-gradient-to-br from-green-600 to-green-700 rounded-lg p-4 shadow-lg">
+                                    <div className="text-sm text-green-100 mb-1">Уникальных Req IDs</div>
+                                    <div className="text-3xl font-bold">{stats.reqIds.size}</div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Фильтры */}
+                        {stats && (
+                            <div className="bg-slate-800 rounded-lg p-6 mb-6 border border-slate-700">
+                                <h2 className="text-xl font-semibold mb-4">Фильтры</h2>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-300 mb-1">Поиск</label>
+                                        <input
+                                            type="text"
+                                            value={searchTerm}
+                                            onChange={(e) => setSearchTerm(e.target.value)}
+                                            placeholder="Полнотекстовый поиск..."
+                                            className="w-full px-3 py-2 bg-slate-700 text-white rounded-md border border-slate-600 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-300 mb-1">Уровень</label>
+                                        <select
+                                            value={filterLevel}
+                                            onChange={(e) => setFilterLevel(e.target.value)}
+                                            className="w-full px-3 py-2 bg-slate-700 text-white rounded-md border border-slate-600 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                                        >
+                                            <option value="">Все уровни</option>
+                                            {Object.keys(stats.levels).map(l => <option key={l} value={l}>{l.toUpperCase()}</option>)}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-300 mb-1">Секция</label>
+                                        <select
+                                            value={filterSection}
+                                            onChange={(e) => setFilterSection(e.target.value)}
+                                            className="w-full px-3 py-2 bg-slate-700 text-white rounded-md border border-slate-600 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                                        >
+                                            <option value="">Все секции</option>
+                                            <option value="plan">PLAN</option>
+                                            <option value="apply">APPLY</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-300 mb-1">Тип ресурса</label>
+                                        <select
+                                            value={filterResourceType}
+                                            onChange={(e) => setFilterResourceType(e.target.value)}
+                                            className="w-full px-3 py-2 bg-slate-700 text-white rounded-md border border-slate-600 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                                        >
+                                            <option value="">Все типы</option>
+                                            {Array.from(stats.resourceTypes).map(rt => <option key={rt} value={rt}>{rt}</option>)}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-300 mb-1">Req ID</label>
+                                        <select
+                                            value={filterReqId}
+                                            onChange={(e) => setFilterReqId(e.target.value)}
+                                            className="w-full px-3 py-2 bg-slate-700 text-white rounded-md border border-slate-600 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                                        >
+                                            <option value="">Все ID</option>
+                                            {Array.from(stats.reqIds).map(id => <option key={id} value={id}>{id}</option>)}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-300 mb-1">Время (от)</label>
+                                        <input
+                                            type="datetime-local"
+                                            value={filterTimestampStart}
+                                            onChange={(e) => setFilterTimestampStart(e.target.value)}
+                                            className="w-full px-3 py-2 bg-slate-700 text-white rounded-md border border-slate-600 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-300 mb-1">Время (до)</label>
+                                        <input
+                                            type="datetime-local"
+                                            value={filterTimestampEnd}
+                                            onChange={(e) => setFilterTimestampEnd(e.target.value)}
+                                            className="w-full px-3 py-2 bg-slate-700 text-white rounded-md border border-slate-600 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                                        />
+                                    </div>
+                                    <div className="flex items-end">
+                                        <label className="flex items-center">
+                                            <input
+                                                type="checkbox"
+                                                checked={filterUnread}
+                                                onChange={(e) => setFilterUnread(e.target.checked)}
+                                                className="mr-2"
+                                            />
+                                            <span className="text-sm">Только непрочитанные</span>
+                                        </label>
+                                    </div>
+                                </div>
+                                <div className="mt-4">
+                                    <button
+                                        onClick={resetRead}
+                                        className="flex items-center gap-1 text-sm bg-amber-600 hover:bg-amber-700 text-white px-3 py-1 rounded"
+                                    >
+                                        <Refresh className="w-4 h-4" /> Сбросить прочитанные
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Журнал событий */}
+                        {filteredLogs.length > 0 && (
+                            <div className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden mb-6">
+                                <div className="bg-slate-750 px-6 py-4 border-b border-slate-700">
+                                    <h2 className="text-xl font-semibold">Журнал событий ({filteredLogs.length})</h2>
+                                </div>
+                                <div className="overflow-x-auto">
+                                    <div className="max-h-[60vh] overflow-y-auto">
+                                        {filteredLogs.map((log) => {
+                                            const isRead = readLogs.has(log.index);
+                                            const isReqIdMatch = filterReqId && log.tf_req_id === filterReqId;
+                                            return (
+                                                <div
+                                                    key={log.index}
+                                                    className={`px-6 py-3 border-b border-slate-700 hover:bg-slate-750 transition-colors ${log.sectionStart ? 'border-l-4 border-l-cyan-500 bg-slate-750' : ''} ${isRead ? 'opacity-60' : ''} ${isReqIdMatch ? 'bg-slate-700' : ''}`}
+                                                >
+                                                    <div className="flex items-start gap-4">
+                                                        <div className="text-slate-500 text-xs font-mono w-12 flex-shrink-0 pt-1">
+                                                            #{log.index}
+                                                        </div>
+
+                                                        <button
+                                                            onClick={() => toggleRead(log.index)}
+                                                            className="text-xs text-slate-400 hover:text-amber-400 flex-shrink-0 pt-1"
+                                                        >
+                                                            {isRead ? <BookmarkFilled className="w-4 h-4" /> : <Bookmark className="w-4 h-4" />}
+                                                        </button>
+
+                                                        <div className={`px-2 py-1 rounded text-xs font-semibold flex items-center gap-1 flex-shrink-0 ${getLevelColor(log.level)}`}>
+                                                            {getLevelIcon(log.level)}
+                                                            {log.level.toUpperCase()}
+                                                        </div>
+
+                                                        {log.section && (
+                                                            <div className={`px-2 py-1 rounded text-xs font-semibold flex-shrink-0 ${
+                                                                log.section === 'plan' ? 'bg-blue-500 text-white' : 'bg-purple-500 text-white'
+                                                            }`}>
+                                                                {log.sectionStart && <CheckCircle className="w-3 h-3 inline mr-1" />}
+                                                                {log.section.toUpperCase()}
+                                                            </div>
+                                                        )}
+
+                                                        {log.tf_req_id && (
+                                                            <div className="px-2 py-1 rounded text-xs font-mono bg-slate-700 text-cyan-300 flex-shrink-0">
+                                                                ID: {log.tf_req_id}
+                                                            </div>
+                                                        )}
+
+                                                        {log.tf_resource_type && (
+                                                            <div className="px-2 py-1 rounded text-xs font-mono bg-slate-700 text-green-300 flex-shrink-0">
+                                                                {log.tf_resource_type}
+                                                            </div>
+                                                        )}
+
+                                                        <div className="text-slate-500 text-xs font-mono flex-shrink-0 pt-1">
+                                                            {getFormattedTimestamp(log.timestamp)}
+                                                        </div>
+
+                                                        <div className="flex-1 text-sm text-slate-300 font-mono break-all">
+                                                            {log.message}
+                                                        </div>
+                                                    </div>
+
+                                                    {log.http_req_body && <JsonViewer data={log.http_req_body} label="Request Body" />}
+                                                    {log.http_res_body && <JsonViewer data={log.http_res_body} label="Response Body" />}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Временная шкала - перенесена вниз */}
+                        {stats && logs.length > 0 && (
+                            <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
+                                <h2 className="text-xl font-semibold mb-4">Хронология событий</h2>
+                                <Timeline logs={filteredLogs.length > 0 ? filteredLogs : logs} />
+                            </div>
+                        )}
+
+                        {logs.length === 0 && !stats && (
+                            <div className="text-center py-12 text-slate-400">
+                                <FileText className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                                <p>Загрузите файл логов для начала анализа</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<TerraformLogParser />);
+    </script>
+</body>
+</html>
